@@ -14,5 +14,8 @@ app.UseAuthorization();
 
 app.MapControllers();
 
-
+app.MapGet("/", () =>
+{
+    return "Welcome to repository service!";
+});
 app.Run();

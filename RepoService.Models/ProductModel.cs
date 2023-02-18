@@ -10,7 +10,7 @@ namespace RepoService.Models
     {
         public int Type { get; set; }
         public string Name { get; set; }
-        public Version Version { get; set; }
+        public VersionInfo Version { get; set; }
         public string FilePath { get; set; }
         public string FileDirectory { get; set; }
         public string ShareFilePath { get; set; }
@@ -19,7 +19,7 @@ namespace RepoService.Models
         public Guid PackageCode { get; set; }
         public Guid PatchCode { get; set; }
         public Guid TargetProductCode { get; set; }
-        public Version TargetVersion { get; set; }
+        public VersionInfo TargetVersion { get; set; }
         public bool IsX64 { get; set; }
         public bool IsArchive { get; set; }
         public List<object> Childs { get; set; }
@@ -32,7 +32,7 @@ namespace RepoService.Models
     {
         public int Type { get; set; }
         public string Name { get; set; }
-        public object Version { get; set; }
+        public VersionInfo Version { get; set; }
         public object FilePath { get; set; }
         public object FileDirectory { get; set; }
         public object ShareFilePath { get; set; }
@@ -41,7 +41,7 @@ namespace RepoService.Models
         public Guid PackageCode { get; set; }
         public Guid PatchCode { get; set; }
         public Guid TargetProductCode { get; set; }
-        public Version TargetVersion { get; set; }
+        public VersionInfo TargetVersion { get; set; }
         public bool IsX64 { get; set; }
         public bool IsArchive { get; set; }
         public List<object> Childs { get; set; }
