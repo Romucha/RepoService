@@ -69,7 +69,7 @@ namespace RepoService.Controllers
         }
 
         [HttpGet("{guid}")]
-        public async Task<ActionResult<ProductModel>> GetByGuid(string guid)
+        public async Task<ActionResult<ProductModel>> GetByGuid(string guid, bool download = false)
         {
             if (Guid.TryParse(guid, out Guid productGuid)
                 || !string.IsNullOrEmpty(repoDir)
@@ -85,8 +85,17 @@ namespace RepoService.Controllers
                         using (FileStream fs = new FileStream(jsonFile, FileMode.Open, FileAccess.Read, FileShare.Read))
                         {
                             model = await JsonSerializer.DeserializeAsync<ProductModel>(fs);
-                            if (model.PackageCode == productGuid)
+                            if (model.UpgradeCode == productGuid)
                             {
+                                if (download)
+                                {
+                                    string filePath = model.ShareFilePath;
+                                    string fileName = Path.GetFileName(model.ShareFilePath);
+
+                                    byte[] fileBytes = System.IO.File.ReadAllBytes(filePath);
+
+                                    return File(fileBytes, "application/force-download", fileName);
+                                }
                                 return model;
                             }
                         }
