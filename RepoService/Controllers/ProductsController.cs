@@ -33,15 +33,16 @@ namespace RepoService.Controllers
         }
 
         [HttpGet]
-        public async IAsyncEnumerable<ProductModel?> Get()
+        public async Task<ActionResult<IAsyncEnumerable<ProductModel>>> Get()
         {
             if (string.IsNullOrEmpty(repoDir)
                 || !Directory.Exists(repoDir)
                 || !Directory.Exists(productsDir))
             {
-                yield break;
+                return BadRequest();
             }
             var jsonFiles = Directory.EnumerateFiles(productsDir, "*.json", SearchOption.AllDirectories);
+            List<ProductModel> models = new();
             foreach (var jsonFile in jsonFiles)
             {
                 ProductModel? model = null;
@@ -57,12 +58,13 @@ namespace RepoService.Controllers
                 {
                     _logger.LogError(ex.Message);
                 }
-                yield return model;
+                models.Add(model);
             }
+            return Ok(models);
         }
 
         [HttpGet("{guid}")]
-        public async Task<ProductModel> Get(string guid)
+        public async Task<ActionResult<ProductModel>> Get(string guid)
         {
             if (Guid.TryParse(guid, out Guid productGuid)
                 || string.IsNullOrEmpty(repoDir)
@@ -75,7 +77,6 @@ namespace RepoService.Controllers
                     ProductModel? model = null;
                     try
                     {
-                        // Root myDeserializedClass = JsonConvert.DeserializeObject<Root>(myJsonResponse);
                         using (FileStream fs = new FileStream(jsonFile, FileMode.Open, FileAccess.Read, FileShare.Read))
                         {
                             model = await JsonSerializer.DeserializeAsync<ProductModel>(fs);
@@ -91,13 +92,13 @@ namespace RepoService.Controllers
                     }
                 }
             }
-            return null;
+            return NotFound(guid);
         }
 
         //upload file with curl like this:
         //curl -v -X POST -F "files=@path\to\file\filename.ext" https://localhost:7193/api/products
         [HttpPost]
-        public async Task<IActionResult> Post(List<IFormFile> files)
+        public async Task<ActionResult<ProductModel>> Post(List<IFormFile> files)
         {
             //look for msi files
             //if there are none or more than one, notify about incorrect input
@@ -156,27 +157,60 @@ namespace RepoService.Controllers
                     };
                 }
                 //msi stream can't be read again and must be copied
-                System.IO.File.Copy(tempmsi, msiFinalName);
-                //write all files to product directory
-                foreach (var file in files)
+                //if file already exists, error shows up
+                if (!System.IO.File.Exists(msiFinalName))
                 {
-                    using (FileStream fs = System.IO.File.Create(tempmsi))
+                    System.IO.File.Copy(tempmsi, msiFinalName);
+                    //write all files to product directory
+                    foreach (var file in files)
                     {
-                        await file.CopyToAsync(fs);
+                        using (FileStream fs = System.IO.File.Create(tempmsi))
+                        {
+                            await file.CopyToAsync(fs);
+                        }
                     }
-                }
 
-                //create json file
-                System.IO.File.WriteAllText(Path.Combine(msiFinalDir, $"{upgradeCode}.json"), JsonSerializer.Serialize(model));
-                //delete leftovers
-                if (Directory.Exists(tempMsiDir))
-                {
-                    Directory.Delete(tempMsiDir, true);
+                    //create json file
+                    System.IO.File.WriteAllText(Path.Combine(msiFinalDir, $"{upgradeCode}.json"), JsonSerializer.Serialize(model));
+                    //delete leftovers
+                    if (Directory.Exists(tempMsiDir))
+                    {
+                        Directory.Delete(tempMsiDir, true);
+                    }
+                    return Ok(model);
                 }
-                return Ok(model);
             }
 
-            return NotFound(new { error = "need 1 msi" });
+            return BadRequest(files);
+        }
+
+        [HttpDelete("{guid}")]
+        public async Task<ActionResult<ProductModel>> Delete(string guid)
+        {
+            if (string.IsNullOrEmpty(repoDir)
+                || !Directory.Exists(repoDir)
+                || !Directory.Exists(productsDir))
+            {
+                return BadRequest();
+            }
+            Guid msiGuid = new Guid(guid);
+            string msiDir = Path.Combine(productsDir, msiGuid.ToString());
+            if (!Directory.Exists(msiDir))
+            {
+                return NotFound();
+            }
+            string msiJsonFile = Path.Combine(msiDir, $"{msiGuid}.json");
+            if (!System.IO.File.Exists(msiJsonFile))
+            {
+                return NotFound();
+            }
+            ProductModel model;
+            using (FileStream fs = new FileStream(msiJsonFile, FileMode.Open, FileAccess.Read, FileShare.Read))
+            {
+                model = await JsonSerializer.DeserializeAsync<ProductModel>(fs);
+            }
+            Directory.Delete(msiDir, true);
+            return Ok(model);
         }
     }
 }
