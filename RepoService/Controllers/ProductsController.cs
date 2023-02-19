@@ -32,14 +32,15 @@ namespace RepoService.Controllers
             productsDir = Path.Combine(repoDir, "Products");
         }
 
+        //Get with search by product name
         [HttpGet]
-        public async Task<ActionResult<IAsyncEnumerable<ProductModel>>> Get()
+        public async Task<ActionResult<IAsyncEnumerable<ProductModel>>> Get(string? productName)
         {
             if (string.IsNullOrEmpty(repoDir)
                 || !Directory.Exists(repoDir)
                 || !Directory.Exists(productsDir))
             {
-                return BadRequest();
+                return NotFound();
             }
             var jsonFiles = Directory.EnumerateFiles(productsDir, "*.json", SearchOption.AllDirectories);
             List<ProductModel> models = new();
@@ -60,16 +61,20 @@ namespace RepoService.Controllers
                 }
                 models.Add(model);
             }
+            if (!string.IsNullOrEmpty(productName))
+            {
+                models = models.Where(c => c.Name.ToLower().Contains(productName.ToLower())).ToList();
+            }
             return Ok(models);
         }
 
         [HttpGet("{guid}")]
-        public async Task<ActionResult<ProductModel>> Get(string guid)
+        public async Task<ActionResult<ProductModel>> GetByGuid(string guid)
         {
             if (Guid.TryParse(guid, out Guid productGuid)
-                || string.IsNullOrEmpty(repoDir)
-                    || !Directory.Exists(repoDir)
-                    || !Directory.Exists(productsDir))
+                || !string.IsNullOrEmpty(repoDir)
+                    || Directory.Exists(repoDir)
+                    || Directory.Exists(productsDir))
             {
                 var jsonFiles = Directory.EnumerateFiles(productsDir, "*.json", SearchOption.AllDirectories);
                 foreach (var jsonFile in jsonFiles)
@@ -184,6 +189,8 @@ namespace RepoService.Controllers
             return BadRequest(files);
         }
 
+        //use
+        //curl -v -X DELETE https://localhost:7193/api/products/:guid
         [HttpDelete("{guid}")]
         public async Task<ActionResult<ProductModel>> Delete(string guid)
         {
@@ -191,7 +198,7 @@ namespace RepoService.Controllers
                 || !Directory.Exists(repoDir)
                 || !Directory.Exists(productsDir))
             {
-                return BadRequest();
+                return NotFound();
             }
             Guid msiGuid = new Guid(guid);
             string msiDir = Path.Combine(productsDir, msiGuid.ToString());
