@@ -11,6 +11,8 @@ using System.Text.Json.Serialization;
 using Microsoft.Deployment.WindowsInstaller;
 using Microsoft.Deployment.WindowsInstaller.Package;
 using RepoService.DataAccess;
+using Microsoft.AspNetCore.Mvc.RazorPages;
+using System.IO.Compression;
 
 namespace RepoService.Controllers
 {
@@ -45,84 +47,53 @@ namespace RepoService.Controllers
         [HttpGet]
         public async Task<ActionResult<IAsyncEnumerable<ProductModel>>> Get(string? productName)
         {
-            _repoDbContext.Products.Add(null);
-            /*
-            if (string.IsNullOrEmpty(repoDir)
-                || !Directory.Exists(repoDir)
-                || !Directory.Exists(productsDir))
+            if (string.IsNullOrEmpty(_repositoryLocation)
+                || !Directory.Exists(_repositoryLocation))
             {
+                Directory.CreateDirectory(_repositoryLocation);
                 return NotFound();
             }
-            var jsonFiles = Directory.EnumerateFiles(productsDir, "*.json", SearchOption.AllDirectories);
-            List<ProductModel> models = new();
-            foreach (var jsonFile in jsonFiles)
-            {
-                ProductModel? model = null;
-                try
-                {
-                    // Root myDeserializedClass = JsonConvert.DeserializeObject<Root>(myJsonResponse);
-                    using (FileStream fs = new FileStream(jsonFile, FileMode.Open, FileAccess.Read, FileShare.Read))
-                    {
-                        model = await JsonSerializer.DeserializeAsync<ProductModel>(fs);
-                    }
-                }
-                catch (Exception ex)
-                {
-                    _logger.LogError(ex.Message);
-                }
-                models.Add(model);
-            }
+            IQueryable<ProductModel> products = _repoDbContext.Products;
             if (!string.IsNullOrEmpty(productName))
             {
-                models = models.Where(c => c.Name.ToLower().Contains(productName.ToLower())).ToList();
+                products = products.Where(c => c.ProductName.ToLower().Contains(productName.ToLower()));
             }
-            return Ok(models);
-            */
-            return NotFound();
+            return Ok(products);
         }
 
         [HttpGet("{guid}")]
         public async Task<ActionResult<ProductModel>> GetByGuid(string guid, bool download = false)
         {
-            /*
-            if (Guid.TryParse(guid, out Guid productGuid)
-                || !string.IsNullOrEmpty(repoDir)
-                    || Directory.Exists(repoDir)
-                    || Directory.Exists(productsDir))
+            if (string.IsNullOrEmpty(_repositoryLocation)
+                || !Directory.Exists(_repositoryLocation))
             {
-                var jsonFiles = Directory.EnumerateFiles(productsDir, "*.json", SearchOption.AllDirectories);
-                foreach (var jsonFile in jsonFiles)
-                {
-                    ProductModel? model = null;
-                    try
-                    {
-                        using (FileStream fs = new FileStream(jsonFile, FileMode.Open, FileAccess.Read, FileShare.Read))
-                        {
-                            model = await JsonSerializer.DeserializeAsync<ProductModel>(fs);
-                            if (model.UpgradeCode == productGuid)
-                            {
-                                if (download)
-                                {
-                                    string filePath = model.ShareFilePath;
-                                    string fileName = Path.GetFileName(model.ShareFilePath);
-
-                                    byte[] fileBytes = System.IO.File.ReadAllBytes(filePath);
-
-                                    return File(fileBytes, "application/force-download", fileName);
-                                }
-                                return model;
-                            }
-                        }
-                    }
-                    catch (Exception ex)
-                    {
-                        _logger.LogError(ex.Message);
-                    }
-                }
+                Directory.CreateDirectory(_repositoryLocation);
+                return NotFound();
             }
-            return NotFound(guid);
-            */
-            return NotFound();
+            Guid actualGuid;
+            if (!Guid.TryParse(guid, out actualGuid))
+            {
+                return BadRequest(guid);
+            }
+            var product = _repoDbContext.Products.FirstOrDefault(c => c.PackageCode == actualGuid);
+            if (product == null)
+            {
+                return NotFound(guid);
+            }
+            if (download)
+            {
+                string fileName = $"{product.PackageCode}.zip";
+                string filePath = Path.Combine(_repositoryLocation, fileName);
+                if (!System.IO.File.Exists(filePath))
+                {
+                    return NotFound(filePath);
+                }
+                return File(await System.IO.File.ReadAllBytesAsync(filePath), "application/force-download", fileName);
+            }
+            else
+            {
+                return Ok(product);
+            }
         }
 
         //upload file with curl like this:
@@ -130,18 +101,24 @@ namespace RepoService.Controllers
         [HttpPost]
         public async Task<ActionResult<ProductModel>> Post(List<IFormFile> files)
         {
-            /*
-            //look for msi files
-            //if there are none or more than one, notify about incorrect input
-            //else
-            //copy msi file to temp dir
-            //find package code of the msi files, create product model
-            //create %package_code% directory
-            //copy all files into new directory
-            //create json file with product model inside the new directory
-            //return ok with product model
-            //long size = files.Sum(f => f.Length);
 
+            /*
+             * Option 1:
+             * 1. Look for msi file.
+             * 2. If there's only 1 msi file, copy all files to temp dir.
+             * 3. Parse msi file into new ProductModel.
+             * 4. Copy all files into zip archive.
+             * 5. Delete temp dir.
+             * 6. Update database.
+             * 
+             * Option 2:
+             * 1. Zip archive... TODO
+             */
+            if (string.IsNullOrEmpty(_repositoryLocation)
+                || !Directory.Exists(_repositoryLocation))
+            {
+                Directory.CreateDirectory(_repositoryLocation);
+            }
             var msifiles = files.Where(c => c.FileName.EndsWith(".msi"));
             //check if there's exactly 1 msi file
             if (msifiles.Count() == 1)
@@ -152,69 +129,52 @@ namespace RepoService.Controllers
                 {
                     Directory.CreateDirectory(tempMsiDir);
                 }
-                //copy msi file to temp dir
-                var tempmsi = Path.Combine(tempMsiDir, msifile.FileName);
-
-                using (FileStream fs = System.IO.File.Create(tempmsi))
+                //copy ALL files to temp dir
+                foreach (var file in files)
                 {
-                    await msifile.CopyToAsync(fs);
+                    var tempfile = Path.Combine(tempMsiDir, file.FileName);
+
+                    using (FileStream fs = System.IO.File.Create(tempfile))
+                    {
+                        await file.CopyToAsync(fs);
+                    }
+
                 }
                 //read msi properties into product model
                 ProductModel model;
-                string msiFinalDir = string.Empty;
-                string msiFinalName = string.Empty;
-                Guid upgradeCode;
-                using (InstallPackage package = new InstallPackage(tempmsi, DatabaseOpenMode.ReadOnly))
+                using (InstallPackage package = new InstallPackage(Path.Combine(tempMsiDir, msifile.FileName), DatabaseOpenMode.ReadOnly))
                 {
-                    upgradeCode = new Guid(package.Property["UpgradeCode"]);
-                    //user revision number to receive package code
-                    msiFinalDir = Path.Combine(productsDir, upgradeCode.ToString());
-                    msiFinalName = Path.Combine(msiFinalDir, msifile.FileName);
-                    if (!Directory.Exists(msiFinalDir))
-                    {
-                        Directory.CreateDirectory(msiFinalDir);
-                    }
-                    model = new ProductModel()
-                    {
-                        FileDirectory = msiFinalDir,
-                        FilePath = msiFinalName,
-                        UpgradeCode = upgradeCode,
-                        ProductCode = new Guid(package.Property["ProductCode"]),
-                        IsX64 = package.SummaryInfo.Template.Contains("64"),
-                        IsAsconProduct = package.SummaryInfo.Keywords.ToLower().Contains("ascon") ? 1 : 0,
-                        IsArchive = false,
-                        ShareFilePath = msiFinalName,
-                        Name = package.Property["ProductName"],
-                    };
+                    model = new ProductModel();
+                    model.ARPCONTACT = package.Property[nameof(model.ARPCONTACT)];
+                    model.ARPHELPLINK = package.Property[nameof(model.ARPHELPLINK)];
+                    model.ARPHELPTELEPHONE = package.Property[nameof(model.ARPHELPTELEPHONE)];
+                    model.ARPURLINFOABOUT = package.Property[nameof(model.ARPURLINFOABOUT)];
+                    model.ARPURLUPDATEINFO = package.Property[nameof(model.ARPURLUPDATEINFO)];
+                    model.Manufacturer = package.SummaryInfo.Author;
+                    model.IsX64 = package.SummaryInfo.Template.Contains("64");
+                    model.PackageCode = new Guid(package.SummaryInfo.RevisionNumber);
+                    model.ProductCode = new Guid(package.Property[nameof(model.ProductCode)]);
+                    model.ProductName = package.Property[nameof(model.ProductName)];
+                    model.ProductVersion = package.Property[nameof(model.ProductVersion)];
+                    model.UpgradeCode = new Guid(package.Property[nameof(model.UpgradeCode)]);
                 }
-                //msi stream can't be read again and must be copied
-                //if file already exists, error shows up
-                if (!System.IO.File.Exists(msiFinalName))
+                //create zip archive from temp directory
+                try
                 {
-                    System.IO.File.Copy(tempmsi, msiFinalName);
-                    //write all files to product directory
-                    foreach (var file in files)
-                    {
-                        using (FileStream fs = System.IO.File.Create(tempmsi))
-                        {
-                            await file.CopyToAsync(fs);
-                        }
-                    }
-
-                    //create json file
-                    System.IO.File.WriteAllText(Path.Combine(msiFinalDir, $"{upgradeCode}.json"), JsonSerializer.Serialize(model));
-                    //delete leftovers
-                    if (Directory.Exists(tempMsiDir))
-                    {
-                        Directory.Delete(tempMsiDir, true);
-                    }
+                    ZipFile.CreateFromDirectory(tempMsiDir, Path.Combine(_repositoryLocation, $"{model.PackageCode}.zip"));
+                    await _repoDbContext.Products.AddAsync(model);
+                    await _repoDbContext.SaveChangesAsync();
+                    Directory.Delete(tempMsiDir, true);
                     return Ok(model);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex.Message);
+                    return BadRequest(ex.Message);
                 }
             }
 
             return BadRequest(files);
-            */
-            return NotFound();
         }
 
         //use
@@ -222,33 +182,41 @@ namespace RepoService.Controllers
         [HttpDelete("{guid}")]
         public async Task<ActionResult<ProductModel>> Delete(string guid)
         {
-            /*
-            if (string.IsNullOrEmpty(repoDir)
-                || !Directory.Exists(repoDir)
-                || !Directory.Exists(productsDir))
+            
+            if (string.IsNullOrEmpty(_repositoryLocation)
+                || !Directory.Exists(_repositoryLocation))
             {
+                Directory.CreateDirectory(_repositoryLocation);
                 return NotFound();
             }
-            Guid msiGuid = new Guid(guid);
-            string msiDir = Path.Combine(productsDir, msiGuid.ToString());
-            if (!Directory.Exists(msiDir))
+            Guid actualGuid;
+            if (!Guid.TryParse(guid, out actualGuid))
             {
-                return NotFound();
+                return BadRequest(guid);
             }
-            string msiJsonFile = Path.Combine(msiDir, $"{msiGuid}.json");
-            if (!System.IO.File.Exists(msiJsonFile))
+            ProductModel model = _repoDbContext.Products.FirstOrDefault(c => c.PackageCode == actualGuid);
+            if (model == null)
             {
-                return NotFound();
+                return NotFound(guid);
             }
-            ProductModel model;
-            using (FileStream fs = new FileStream(msiJsonFile, FileMode.Open, FileAccess.Read, FileShare.Read))
+            string zipName = $"{model.PackageCode}.zip";
+            string msiZip = Path.Combine(_repositoryLocation, zipName);
+            if (!System.IO.File.Exists(msiZip))
             {
-                model = await JsonSerializer.DeserializeAsync<ProductModel>(fs);
+                return NotFound(zipName);
             }
-            Directory.Delete(msiDir, true);
-            return Ok(model);
-            */
-            return NotFound();
+            try
+            {
+                System.IO.File.Delete(msiZip);
+                _repoDbContext.Products.Remove(model);
+                _repoDbContext.SaveChanges();
+                return Ok(model);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex.Message);
+                return BadRequest(ex.Message);
+            }
         }
     }
 }
