@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.ComponentModel.DataAnnotations;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
@@ -8,45 +9,24 @@ namespace RepoService.Models
 {
     public class ProductModel
     {
-        public int Type { get; set; }
-        public string Name { get; set; }
-        public VersionInfo Version { get; set; }
-        public string FilePath { get; set; }
-        public string FileDirectory { get; set; }
-        public string ShareFilePath { get; set; }
+        [Required]
+        public string ProductName { get; set; }
+        [Required]
+        public string ProductVersion { get; set; }
+        [Required]
         public Guid ProductCode { get; set; }
+        [Required]
         public Guid UpgradeCode { get; set; }
+        [Key]
+        [Required]
         public Guid PackageCode { get; set; }
-        public Guid PatchCode { get; set; }
-        public Guid TargetProductCode { get; set; }
-        public VersionInfo TargetVersion { get; set; }
-        public bool IsX64 { get; set; }
-        public bool IsArchive { get; set; }
-        public List<object> Childs { get; set; }
-        public List<Scenario> Scenarios { get; set; }
-        public object Arguments { get; set; }
-        public int IsAsconProduct { get; set; }
-    }
-
-    public class Scenario
-    {
-        public int Type { get; set; }
-        public string Name { get; set; }
-        public VersionInfo Version { get; set; }
-        public object FilePath { get; set; }
-        public object FileDirectory { get; set; }
-        public object ShareFilePath { get; set; }
-        public Guid ProductCode { get; set; }
-        public Guid UpgradeCode { get; set; }
-        public Guid PackageCode { get; set; }
-        public Guid PatchCode { get; set; }
-        public Guid TargetProductCode { get; set; }
-        public VersionInfo TargetVersion { get; set; }
-        public bool IsX64 { get; set; }
-        public bool IsArchive { get; set; }
-        public List<object> Childs { get; set; }
-        public List<Scenario> Scenarios { get; set; }
-        public object Arguments { get; set; }
-        public int IsAsconProduct { get; set; }
+        public bool IsX64 { get; set; } = true;
+        [Required]
+        public string Manufacturer { get; set; }
+        public string ARPCONTACT { get; set; }
+        public string ARPHELPLINK { get; set; }
+        public string ARPURLINFOABOUT { get; set; }
+        public string ARPURLUPDATEINFO { get; set; }
+        public string ARPHELPTELEPHONE { get; set; } 
     }
 }

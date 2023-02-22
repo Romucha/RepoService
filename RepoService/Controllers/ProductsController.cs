@@ -10,6 +10,7 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using Microsoft.Deployment.WindowsInstaller;
 using Microsoft.Deployment.WindowsInstaller.Package;
+using RepoService.DataAccess;
 
 namespace RepoService.Controllers
 {
@@ -21,21 +22,31 @@ namespace RepoService.Controllers
 
         private readonly IConfiguration _configuration;
 
-        private readonly string repoDir;
-        private readonly string productsDir;
+        private readonly RepoDbContext _repoDbContext;
 
-        public ProductsController(ILogger<ProductsController> logger, IConfiguration configuration)
+        private readonly string _repositoryLocation;
+
+        public ProductsController(ILogger<ProductsController> logger, IConfiguration configuration, RepoDbContext repoDbContext)
         {
             this._logger = logger;
             this._configuration = configuration;
-            repoDir = _configuration["RepoStorage"];
-            productsDir = Path.Combine(repoDir, "Products");
+            this._repoDbContext = repoDbContext;
+            _repositoryLocation = Path.Combine(
+                _configuration["RepositoryLocation"] ?? 
+                Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "RepoService"),
+                "Products");
+            if (!Directory.Exists(_repositoryLocation))
+            {
+                Directory.CreateDirectory(_repositoryLocation);
+            }
         }
 
         //Get with search by product name
         [HttpGet]
         public async Task<ActionResult<IAsyncEnumerable<ProductModel>>> Get(string? productName)
         {
+            _repoDbContext.Products.Add(null);
+            /*
             if (string.IsNullOrEmpty(repoDir)
                 || !Directory.Exists(repoDir)
                 || !Directory.Exists(productsDir))
@@ -50,12 +61,12 @@ namespace RepoService.Controllers
                 try
                 {
                     // Root myDeserializedClass = JsonConvert.DeserializeObject<Root>(myJsonResponse);
-                    using (FileStream fs = new FileStream(jsonFile, FileMode.Open, FileAccess.Read, FileShare.Read))                    
+                    using (FileStream fs = new FileStream(jsonFile, FileMode.Open, FileAccess.Read, FileShare.Read))
                     {
                         model = await JsonSerializer.DeserializeAsync<ProductModel>(fs);
                     }
                 }
-                catch(Exception ex)
+                catch (Exception ex)
                 {
                     _logger.LogError(ex.Message);
                 }
@@ -66,11 +77,14 @@ namespace RepoService.Controllers
                 models = models.Where(c => c.Name.ToLower().Contains(productName.ToLower())).ToList();
             }
             return Ok(models);
+            */
+            return NotFound();
         }
 
         [HttpGet("{guid}")]
         public async Task<ActionResult<ProductModel>> GetByGuid(string guid, bool download = false)
         {
+            /*
             if (Guid.TryParse(guid, out Guid productGuid)
                 || !string.IsNullOrEmpty(repoDir)
                     || Directory.Exists(repoDir)
@@ -107,6 +121,8 @@ namespace RepoService.Controllers
                 }
             }
             return NotFound(guid);
+            */
+            return NotFound();
         }
 
         //upload file with curl like this:
@@ -114,6 +130,7 @@ namespace RepoService.Controllers
         [HttpPost]
         public async Task<ActionResult<ProductModel>> Post(List<IFormFile> files)
         {
+            /*
             //look for msi files
             //if there are none or more than one, notify about incorrect input
             //else
@@ -124,10 +141,10 @@ namespace RepoService.Controllers
             //create json file with product model inside the new directory
             //return ok with product model
             //long size = files.Sum(f => f.Length);
-            
+
             var msifiles = files.Where(c => c.FileName.EndsWith(".msi"));
             //check if there's exactly 1 msi file
-            if (msifiles.Count() == 1) 
+            if (msifiles.Count() == 1)
             {
                 var msifile = msifiles.First();
                 var tempMsiDir = Path.Combine(Path.GetTempPath(), $"RepoService_{msifile.FileName}_{DateTime.Now.ToString("dd.MM.yyyy_hh.mm.ss")}");
@@ -150,7 +167,7 @@ namespace RepoService.Controllers
                 using (InstallPackage package = new InstallPackage(tempmsi, DatabaseOpenMode.ReadOnly))
                 {
                     upgradeCode = new Guid(package.Property["UpgradeCode"]);
-
+                    //user revision number to receive package code
                     msiFinalDir = Path.Combine(productsDir, upgradeCode.ToString());
                     msiFinalName = Path.Combine(msiFinalDir, msifile.FileName);
                     if (!Directory.Exists(msiFinalDir))
@@ -196,6 +213,8 @@ namespace RepoService.Controllers
             }
 
             return BadRequest(files);
+            */
+            return NotFound();
         }
 
         //use
@@ -203,6 +222,7 @@ namespace RepoService.Controllers
         [HttpDelete("{guid}")]
         public async Task<ActionResult<ProductModel>> Delete(string guid)
         {
+            /*
             if (string.IsNullOrEmpty(repoDir)
                 || !Directory.Exists(repoDir)
                 || !Directory.Exists(productsDir))
@@ -227,6 +247,8 @@ namespace RepoService.Controllers
             }
             Directory.Delete(msiDir, true);
             return Ok(model);
+            */
+            return NotFound();
         }
     }
 }

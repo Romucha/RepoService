@@ -1,3 +1,5 @@
+using RepoService.DataAccess;
+
 var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
@@ -5,6 +7,8 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddControllers();
 // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
 builder.Services.AddEndpointsApiExplorer();
+builder.Services.AddDbContext<RepoDbContext>();
+builder.Services.AddTransient<IDbInitializer, DbInitializer>();
 
 var app = builder.Build();
 
@@ -18,4 +22,8 @@ app.MapGet("/", () =>
 {
     return "Welcome to repository service!";
 });
+using (var scope = app.Services.CreateScope())
+{
+    ((IDbInitializer)scope.ServiceProvider.GetService(typeof(IDbInitializer))).Initialize();
+}
 app.Run();
