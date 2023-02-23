@@ -73,7 +73,11 @@ namespace RepoService.Controllers
                 {
                     return NotFound(filePath);
                 }
-                return File(await System.IO.File.ReadAllBytesAsync(filePath), "application/force-download", fileName);
+                return new PhysicalFileResult(filePath, "application/octet-stream")
+                {
+                    FileDownloadName = fileName,
+                };
+                    //(await System.IO.File.ReadAllBytesAsync(filePath), "application/force-download", fileName, true);
             }
             else
             {
