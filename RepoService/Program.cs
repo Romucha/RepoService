@@ -1,5 +1,6 @@
 using RepoService.DataManagement;
-using RepoService.DataManagement.ProductMaking;
+using RepoService.DataManagement.ProductMaker;
+using RepoService.DataManagement.RepositoryLocator;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -11,6 +12,8 @@ builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddDbContext<RepoDbContext>();
 builder.Services.AddTransient<IDbInitializer, DbInitializer>();
 builder.Services.AddScoped<IProductFactory, ProductFactory>();
+
+builder.Services.AddScoped<IRepositoryLocation, RepositoryLocation>();
 
 var app = builder.Build();
 

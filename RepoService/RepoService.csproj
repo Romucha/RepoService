@@ -19,22 +19,4 @@
     <ProjectReference Include="..\RepoService.Models\RepoService.Models.csproj" />
   </ItemGroup>
 
-  <ItemGroup>
-    <Reference Include="Microsoft.Deployment.Compression">
-      <HintPath>Microsoft.Deployment.Compression.dll</HintPath>
-    </Reference>
-    <Reference Include="Microsoft.Deployment.Compression.Cab">
-      <HintPath>Microsoft.Deployment.Compression.Cab.dll</HintPath>
-    </Reference>
-    <Reference Include="Microsoft.Deployment.Compression.Zip">
-      <HintPath>Microsoft.Deployment.Compression.Zip.dll</HintPath>
-    </Reference>
-    <Reference Include="Microsoft.Deployment.WindowsInstaller">
-      <HintPath>Microsoft.Deployment.WindowsInstaller.dll</HintPath>
-    </Reference>
-    <Reference Include="Microsoft.Deployment.WindowsInstaller.Package">
-      <HintPath>Microsoft.Deployment.WindowsInstaller.Package.dll</HintPath>
-    </Reference>
-  </ItemGroup>
-
 </Project>

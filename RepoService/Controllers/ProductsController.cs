@@ -8,12 +8,11 @@ using System.Runtime.CompilerServices;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
-using Microsoft.Deployment.WindowsInstaller;
-using Microsoft.Deployment.WindowsInstaller.Package;
 using RepoService.DataManagement;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using System.IO.Compression;
-using RepoService.DataManagement.ProductMaking;
+using RepoService.DataManagement.ProductMaker;
+using RepoService.DataManagement.RepositoryLocator;
 
 namespace RepoService.Controllers
 {
@@ -29,34 +28,21 @@ namespace RepoService.Controllers
 
         private readonly IProductFactory _productFactory;
 
-        private readonly string _repositoryLocation;
+        private readonly IRepositoryLocation _repositoryLocation;
 
-        public ProductsController(ILogger<ProductsController> logger, IConfiguration configuration, RepoDbContext repoDbContext, IProductFactory productFactory)
+        public ProductsController(ILogger<ProductsController> logger, IConfiguration configuration, RepoDbContext repoDbContext, IProductFactory productFactory, IRepositoryLocation repositoryLocation)
         {
             this._logger = logger;
             this._configuration = configuration;
             this._repoDbContext = repoDbContext;
             this._productFactory = productFactory;
-            _repositoryLocation = Path.Combine(
-                _configuration["RepositoryLocation"] ?? 
-                Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "RepoService"),
-                "Products");
-            if (!Directory.Exists(_repositoryLocation))
-            {
-                Directory.CreateDirectory(_repositoryLocation);
-            }
+            _repositoryLocation = repositoryLocation;
         }
 
         //Get with search by product name
         [HttpGet]
         public async Task<ActionResult<IAsyncEnumerable<ProductModel>>> Get(string? productName)
         {
-            if (string.IsNullOrEmpty(_repositoryLocation)
-                || !Directory.Exists(_repositoryLocation))
-            {
-                Directory.CreateDirectory(_repositoryLocation);
-                return NotFound();
-            }
             IQueryable<ProductModel> products = _repoDbContext.Products;
             if (!string.IsNullOrEmpty(productName))
             {
@@ -65,15 +51,10 @@ namespace RepoService.Controllers
             return Ok(products);
         }
 
+        //get by guid and optionally download file
         [HttpGet("{guid}")]
         public async Task<ActionResult<ProductModel>> GetByGuid(string guid, bool download = false)
         {
-            if (string.IsNullOrEmpty(_repositoryLocation)
-                || !Directory.Exists(_repositoryLocation))
-            {
-                Directory.CreateDirectory(_repositoryLocation);
-                return NotFound();
-            }
             Guid actualGuid;
             if (!Guid.TryParse(guid, out actualGuid))
             {
@@ -87,7 +68,7 @@ namespace RepoService.Controllers
             if (download)
             {
                 string fileName = $"{product.PackageCode}.zip";
-                string filePath = Path.Combine(_repositoryLocation, fileName);
+                string filePath = Path.Combine(_repositoryLocation.Location, fileName);
                 if (!System.IO.File.Exists(filePath))
                 {
                     return NotFound(filePath);
@@ -107,23 +88,29 @@ namespace RepoService.Controllers
         {
 
             /*
-             * Option 1:
+             * Option 1 - msi file:
              * 1. Look for msi file.
              * 2. If there's only 1 msi file, copy all files to temp dir.
-             * 3. Parse msi file into new ProductModel.
-             * 4. Copy all files into zip archive.
-             * 5. Delete temp dir.
-             * 6. Update database.
+             * 3. Give temp dir location to product factory.
+             * 4. Inside product factory:
+             * 4.1. Look for a msi file in the directory.
+             * 4.2. Parse file into product model.
+             * 4.3. Add all files into zip archive placed into products directory. If archive already exists, it gets ovewritten.
+             * 4.4. Delete temp dir and return model.
+             * 5. Update database.
              * 
-             * Option 2:
-             * 1. Zip archive... TODO
+             * Option 2 - zip acrhive:
+             * 1. Check if zip archive is a single entry.
+             * 2. Copy archive to temp directory.
+             * 3. Give archive location to product factory.
+             * 4. Inside product factory:
+             * 4.1. Extract archive into another temp directory
+             * 4.2. Pass directory location to option 1 method.
+             * 4.3. Delete first temp directory with archive.
+             * 5. Update database.
              */
-            if (string.IsNullOrEmpty(_repositoryLocation)
-                || !Directory.Exists(_repositoryLocation))
-            {
-                Directory.CreateDirectory(_repositoryLocation);
-            }
             var msifiles = files.Where(c => c.FileName.EndsWith(".msi"));
+            var zipfiles = files.Where(c => c.FileName.EndsWith(".zip"));
             //check if there's exactly 1 msi file
             if (msifiles.Count() == 1)
             {
@@ -145,40 +132,32 @@ namespace RepoService.Controllers
 
                 }
                 //read msi properties into product model
-                ProductModel model;
-                using (InstallPackage package = new InstallPackage(Path.Combine(tempMsiDir, msifile.FileName), DatabaseOpenMode.ReadOnly))
+                ProductModel model = _productFactory.GetFromMsi(tempMsiDir);
+                if (model != null)
                 {
-                    model = new ProductModel();
-                    model.ARPCONTACT = package.Property[nameof(model.ARPCONTACT)];
-                    model.ARPHELPLINK = package.Property[nameof(model.ARPHELPLINK)];
-                    model.ARPHELPTELEPHONE = package.Property[nameof(model.ARPHELPTELEPHONE)];
-                    model.ARPURLINFOABOUT = package.Property[nameof(model.ARPURLINFOABOUT)];
-                    model.ARPURLUPDATEINFO = package.Property[nameof(model.ARPURLUPDATEINFO)];
-                    model.Manufacturer = package.SummaryInfo.Author;
-                    model.IsX64 = package.SummaryInfo.Template.Contains("64");
-                    model.PackageCode = new Guid(package.SummaryInfo.RevisionNumber);
-                    model.ProductCode = new Guid(package.Property[nameof(model.ProductCode)]);
-                    model.ProductName = package.Property[nameof(model.ProductName)];
-                    model.ProductVersion = package.Property[nameof(model.ProductVersion)];
-                    model.UpgradeCode = new Guid(package.Property[nameof(model.UpgradeCode)]);
-                }
-                //create zip archive from temp directory
-                try
-                {
-                    ZipFile.CreateFromDirectory(tempMsiDir, Path.Combine(_repositoryLocation, $"{model.PackageCode}.zip"));
                     await _repoDbContext.Products.AddAsync(model);
                     await _repoDbContext.SaveChangesAsync();
-                    Directory.Delete(tempMsiDir, true);
                     return Ok(model);
                 }
-                catch (Exception ex)
+            }
+            else if (zipfiles.Count() == 1)
+            {
+                var zipfile = zipfiles.First();
+                var tempZipFile = Path.Combine(Path.GetTempPath(), zipfile.FileName);
+                using (FileStream fs = System.IO.File.Create(tempZipFile))
                 {
-                    _logger.LogError(ex.Message);
-                    return BadRequest(ex.Message);
+                    await zipfile.CopyToAsync(fs);
+                }
+                ProductModel model = _productFactory.GetFromZip(tempZipFile);
+                if (model != null)
+                {
+                    await _repoDbContext.Products.AddAsync(model);
+                    await _repoDbContext.SaveChangesAsync();
+                    return Ok(model);
                 }
             }
 
-            return BadRequest(files);
+            return StatusCode(500, files);
         }
 
         //use
@@ -186,13 +165,6 @@ namespace RepoService.Controllers
         [HttpDelete("{guid}")]
         public async Task<ActionResult<ProductModel>> Delete(string guid)
         {
-            
-            if (string.IsNullOrEmpty(_repositoryLocation)
-                || !Directory.Exists(_repositoryLocation))
-            {
-                Directory.CreateDirectory(_repositoryLocation);
-                return NotFound();
-            }
             Guid actualGuid;
             if (!Guid.TryParse(guid, out actualGuid))
             {
@@ -204,7 +176,7 @@ namespace RepoService.Controllers
                 return NotFound(guid);
             }
             string zipName = $"{model.PackageCode}.zip";
-            string msiZip = Path.Combine(_repositoryLocation, zipName);
+            string msiZip = Path.Combine(_repositoryLocation.Location, zipName);
             if (!System.IO.File.Exists(msiZip))
             {
                 return NotFound(zipName);
@@ -219,7 +191,7 @@ namespace RepoService.Controllers
             catch (Exception ex)
             {
                 _logger.LogError(ex.Message);
-                return BadRequest(ex.Message);
+                return StatusCode(500, ex.Message);
             }
         }
     }

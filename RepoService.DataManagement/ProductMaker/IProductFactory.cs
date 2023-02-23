@@ -5,11 +5,11 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace RepoService.DataManagement.ProductMaking
+namespace RepoService.DataManagement.ProductMaker
 {
     public interface IProductFactory
     {
-        public ProductModel GetFromMsi(string PathToMsi);
+        public ProductModel GetFromMsi(string PathToMsiDir);
 
         public ProductModel GetFromZip(string PathToZip);
     }
