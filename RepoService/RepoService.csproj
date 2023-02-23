@@ -15,7 +15,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\RepoService.DataAccess\RepoService.DataAccess.csproj" />
+    <ProjectReference Include="..\RepoService.DataManagement\RepoService.DataManagement.csproj" />
     <ProjectReference Include="..\RepoService.Models\RepoService.Models.csproj" />
   </ItemGroup>
 

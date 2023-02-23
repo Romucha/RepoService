@@ -10,9 +10,10 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using Microsoft.Deployment.WindowsInstaller;
 using Microsoft.Deployment.WindowsInstaller.Package;
-using RepoService.DataAccess;
+using RepoService.DataManagement;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using System.IO.Compression;
+using RepoService.DataManagement.ProductMaking;
 
 namespace RepoService.Controllers
 {
@@ -26,13 +27,16 @@ namespace RepoService.Controllers
 
         private readonly RepoDbContext _repoDbContext;
 
+        private readonly IProductFactory _productFactory;
+
         private readonly string _repositoryLocation;
 
-        public ProductsController(ILogger<ProductsController> logger, IConfiguration configuration, RepoDbContext repoDbContext)
+        public ProductsController(ILogger<ProductsController> logger, IConfiguration configuration, RepoDbContext repoDbContext, IProductFactory productFactory)
         {
             this._logger = logger;
             this._configuration = configuration;
             this._repoDbContext = repoDbContext;
+            this._productFactory = productFactory;
             _repositoryLocation = Path.Combine(
                 _configuration["RepositoryLocation"] ?? 
                 Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "RepoService"),

@@ -7,7 +7,7 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "RepoService", "RepoService\
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "RepoService.Models", "RepoService.Models\RepoService.Models.csproj", "{C230072D-E400-4802-AA99-57E97B829378}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "RepoService.DataAccess", "RepoService.DataAccess\RepoService.DataAccess.csproj", "{9D6984BB-F77E-4CD4-8EBC-65B4F3022D20}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "RepoService.DataManagement", "RepoService.DataManagement\RepoService.DataManagement.csproj", "{9D6984BB-F77E-4CD4-8EBC-65B4F3022D20}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution

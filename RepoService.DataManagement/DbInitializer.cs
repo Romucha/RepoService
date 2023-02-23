@@ -6,7 +6,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace RepoService.DataAccess
+namespace RepoService.DataManagement
 {
     public class DbInitializer : IDbInitializer
     {

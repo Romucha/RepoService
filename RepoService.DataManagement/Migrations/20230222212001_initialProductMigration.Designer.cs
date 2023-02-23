@@ -2,18 +2,21 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
-using RepoService.DataAccess;
+using RepoService.DataManagement;
 
 #nullable disable
 
-namespace RepoService.DataAccess.Migrations
+namespace RepoService.DataManagement.Migrations
 {
     [DbContext(typeof(RepoDbContext))]
-    partial class RepoDbContextModelSnapshot : ModelSnapshot
+    [Migration("20230222212001_initialProductMigration")]
+    partial class initialProductMigration
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder

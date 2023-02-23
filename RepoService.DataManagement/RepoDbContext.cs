@@ -3,7 +3,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using RepoService.Models;
 
-namespace RepoService.DataAccess
+namespace RepoService.DataManagement
 {
     public class RepoDbContext : DbContext
     {

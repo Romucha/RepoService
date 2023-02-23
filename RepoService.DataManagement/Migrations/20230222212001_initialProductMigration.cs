@@ -3,7 +3,7 @@ using Microsoft.EntityFrameworkCore.Migrations;
 
 #nullable disable
 
-namespace RepoService.DataAccess.Migrations
+namespace RepoService.DataManagement.Migrations
 {
     /// <inheritdoc />
     public partial class initialProductMigration : Migration
