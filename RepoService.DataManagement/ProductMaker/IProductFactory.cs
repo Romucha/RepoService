@@ -9,8 +9,8 @@ namespace RepoService.DataManagement.ProductMaker
 {
     public interface IProductFactory
     {
-        public ProductModel GetFromMsi(string PathToMsiDir);
+        public ProductModel GetFromMsi(string PathToMsiDir, bool OverWriteFile = false);
 
-        public ProductModel GetFromZip(string PathToZip);
+        public ProductModel GetFromZip(string PathToZip, bool OverWriteFile = false);
     }
 }

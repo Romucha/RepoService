@@ -13,6 +13,8 @@ using Microsoft.AspNetCore.Mvc.RazorPages;
 using System.IO.Compression;
 using RepoService.DataManagement.ProductMaker;
 using RepoService.DataManagement.RepositoryLocator;
+using Microsoft.Extensions.FileProviders;
+using Microsoft.EntityFrameworkCore;
 
 namespace RepoService.Controllers
 {
@@ -90,81 +92,18 @@ namespace RepoService.Controllers
         [HttpPost]
         public async Task<ActionResult<ProductModel>> Post(List<IFormFile> files)
         {
-
-            /*
-             * Option 1 - msi file:
-             * 1. Look for msi file.
-             * 2. If there's only 1 msi file, copy all files to temp dir.
-             * 3. Give temp dir location to product factory.
-             * 4. Inside product factory:
-             * 4.1. Look for a msi file in the directory.
-             * 4.2. Parse file into product model.
-             * 4.3. Add all files into zip archive placed into products directory. If archive already exists, it gets ovewritten.
-             * 4.4. Delete temp dir and return model.
-             * 5. Update database.
-             * 
-             * Option 2 - zip acrhive:
-             * 1. Check if zip archive is a single entry.
-             * 2. Copy archive to temp directory.
-             * 3. Give archive location to product factory.
-             * 4. Inside product factory:
-             * 4.1. Extract archive into another temp directory
-             * 4.2. Pass directory location to option 1 method.
-             * 4.3. Delete first temp directory with archive.
-             * 5. Update database.
-             */
-            var msifiles = files.Where(c => c.FileName.EndsWith(".msi"));
-            var zipfiles = files.Where(c => c.FileName.EndsWith(".zip"));
-            //check if there's exactly 1 msi file
-            if (msifiles.Count() == 1)
+            ProductModel model = await parseInputFiles(files);
+            if (model != null)
             {
-                var msifile = msifiles.First();
-                var tempMsiDir = Path.Combine(Path.GetTempPath(), $"RepoService_{msifile.FileName}_{DateTime.Now.ToString("dd.MM.yyyy_hh.mm.ss")}");
-                if (!Directory.Exists(tempMsiDir))
-                {
-                    Directory.CreateDirectory(tempMsiDir);
-                }
-                //copy ALL files to temp dir
-                foreach (var file in files)
-                {
-                    var tempfile = Path.Combine(tempMsiDir, file.FileName);
-
-                    using (FileStream fs = System.IO.File.Create(tempfile))
-                    {
-                        await file.CopyToAsync(fs);
-                    }
-
-                }
-                //read msi properties into product model
-                ProductModel model = _productFactory.GetFromMsi(tempMsiDir);
-                if (model != null)
-                {
-                    await _repoDbContext.Products.AddAsync(model);
-                    await _repoDbContext.SaveChangesAsync();
-                    return Ok(model);
-                }
-            }
-            else if (zipfiles.Count() == 1)
-            {
-                var zipfile = zipfiles.First();
-                var tempZipFile = Path.Combine(Path.GetTempPath(), zipfile.FileName);
-                using (FileStream fs = System.IO.File.Create(tempZipFile))
-                {
-                    await zipfile.CopyToAsync(fs);
-                }
-                ProductModel model = _productFactory.GetFromZip(tempZipFile);
-                if (model != null)
-                {
-                    await _repoDbContext.Products.AddAsync(model);
-                    await _repoDbContext.SaveChangesAsync();
-                    return Ok(model);
-                }
+                await _repoDbContext.Products.AddAsync(model);
+                await _repoDbContext.SaveChangesAsync();
+                return Ok(model);
             }
 
             return StatusCode(500, files);
         }
 
-        //use
+        //delete
         //curl -v -X DELETE https://localhost:7193/api/products/:guid
         [HttpDelete("{guid}")]
         public async Task<ActionResult<ProductModel>> Delete(string guid)
@@ -196,6 +135,96 @@ namespace RepoService.Controllers
             {
                 _logger.LogError(ex.Message);
                 return StatusCode(500, ex.Message);
+            }
+        }
+
+        //put
+        //curl -v -X PUT -F "files=@path\to\file\filename.ext" https://localhost:7193/api/products
+        public async Task<ActionResult<ProductModel>> Put(List<IFormFile> files)
+        {
+            ProductModel model = await parseInputFiles(files, true);
+            if (model != null)
+            {
+                if (_repoDbContext.Products.Where(c => c.PackageCode == model.PackageCode).Any())
+                {
+                    _repoDbContext.Update(model);
+                    await _repoDbContext.SaveChangesAsync();
+                    return Ok(model);
+                }
+            }
+
+            return StatusCode(500, files);
+        }
+
+
+        private async Task<ProductModel> parseInputFiles(List<IFormFile> files, bool overWriteFile = false)
+        {
+            /*
+             * Option 1 - msi file:
+             * 1. Look for msi file.
+             * 2. If there's only 1 msi file, copy all files to temp dir.
+             * 3. Give temp dir location to product factory.
+             * 4. Inside product factory:
+             * 4.1. Look for a msi file in the directory.
+             * 4.2. Parse file into product model.
+             * 4.3. Add all files into zip archive placed into products directory. If archive already exists, it gets ovewritten.
+             * 4.4. Delete temp dir and return model.
+             * 5. Update database.
+             * 
+             * Option 2 - zip acrhive:
+             * 1. Check if zip archive is a single entry.
+             * 2. Copy archive to temp directory.
+             * 3. Give archive location to product factory.
+             * 4. Inside product factory:
+             * 4.1. Extract archive into another temp directory
+             * 4.2. Pass directory location to option 1 method.
+             * 4.3. Delete first temp directory with archive.
+             * 5. Update database.
+             */
+            try
+            {
+                ProductModel model = null;
+                var msifiles = files.Where(c => c.FileName.EndsWith(".msi"));
+                var zipfiles = files.Where(c => c.FileName.EndsWith(".zip"));
+                //check if there's exactly 1 msi file
+                if (msifiles.Count() == 1)
+                {
+                    var msifile = msifiles.First();
+                    var tempMsiDir = Path.Combine(Path.GetTempPath(), $"RepoService_{msifile.FileName}_{DateTime.Now.ToString("dd.MM.yyyy_hh.mm.ss")}");
+                    if (!Directory.Exists(tempMsiDir))
+                    {
+                        Directory.CreateDirectory(tempMsiDir);
+                    }
+                    //copy ALL files to temp dir
+                    foreach (var file in files)
+                    {
+                        var tempfile = Path.Combine(tempMsiDir, file.FileName);
+
+                        using (FileStream fs = System.IO.File.Create(tempfile))
+                        {
+                            await file.CopyToAsync(fs);
+                        }
+
+                    }
+                    //read msi properties into product model
+                    model = _productFactory.GetFromMsi(tempMsiDir, overWriteFile);
+                }
+                else if (zipfiles.Count() == 1)
+                {
+                    var zipfile = zipfiles.First();
+                    var tempZipFile = Path.Combine(Path.GetTempPath(), zipfile.FileName);
+                    using (FileStream fs = System.IO.File.Create(tempZipFile))
+                    {
+                        await zipfile.CopyToAsync(fs);
+                    }
+                    model = _productFactory.GetFromZip(tempZipFile, overWriteFile);
+                }
+                return model;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex.Message);
+                return null;
             }
         }
     }

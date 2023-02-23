@@ -27,7 +27,7 @@ namespace RepoService.DataManagement.ProductMaker
             _repositoryLocation = repositoryLocation;
         }
 
-        public ProductModel GetFromMsi(string PathToMsiDir)
+        public ProductModel GetFromMsi(string PathToMsiDir, bool OverWriteFile = false)
         {
             try
             {
@@ -51,7 +51,15 @@ namespace RepoService.DataManagement.ProductMaker
                         model.ProductVersion = package.Property[nameof(model.ProductVersion)];
                         model.UpgradeCode = new Guid(package.Property[nameof(model.UpgradeCode)]);
                     }
-                    ZipFile.CreateFromDirectory(PathToMsiDir, Path.Combine(_repositoryLocation.Location, $"{model.PackageCode}.zip"));
+                    string destArchivePath = Path.Combine(_repositoryLocation.Location, $"{model.PackageCode}.zip");
+                    if (OverWriteFile)
+                    {
+                        if (File.Exists(destArchivePath))
+                        {
+                            File.Delete(destArchivePath);
+                        }
+                    }
+                    ZipFile.CreateFromDirectory(PathToMsiDir, destArchivePath);
                 }
                 return model;
 
@@ -70,7 +78,7 @@ namespace RepoService.DataManagement.ProductMaker
             }
         }
 
-        public ProductModel GetFromZip(string PathToZip)
+        public ProductModel GetFromZip(string PathToZip, bool OverWriteFile = false)
         {
             try
             {
@@ -80,7 +88,7 @@ namespace RepoService.DataManagement.ProductMaker
                     Directory.CreateDirectory(tempZipDir);
                 }
                 ZipFile.ExtractToDirectory(PathToZip, tempZipDir);
-                ProductModel model = GetFromMsi(tempZipDir);
+                ProductModel model = GetFromMsi(tempZipDir, OverWriteFile);
                 File.Delete(PathToZip);
                 return model;
             }
