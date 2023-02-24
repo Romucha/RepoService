@@ -1,0 +1,132 @@
+﻿@page "/products"
+@using RepoService.Models;
+@inject IConfiguration _configuration
+@inject Data.RepoReceiverService _repoReceiverService
+
+@if (products == null && error == null)
+{
+ <p><em>Loading...</em></p>
+}
+else if (error != null)
+{
+ <p>@error.Message</p>
+}
+else
+{
+ <div class="row-cols-1">
+  <p>Find by product name:</p>
+ </div>
+ <div class="row-cols-1">
+  <input type="text" @bind=ProductNameFilter style="width:20%" />
+ </div>
+ <hr />
+ @*<form id="fileUploader" method="post">
+  <input type="file" name="FileUpload" multiple/>
+  <input type="submit" class="btn btn-primary"/>
+ </form>*@
+ <InputFile OnChange="@LoadFiles" multiple />
+ <div class="row-cols-1">
+  <table class="table">
+   <thead>
+    <tr>
+     @{
+      <th>Download</th>
+      <th>Delete</th>
+      var titleProduct = new ProductModel();
+      foreach (var property in titleProduct.GetType().GetProperties())
+      {
+       <th>@property.Name</th>
+      }
+     }
+    </tr>
+   </thead>
+   <tbody>
+    @foreach (var product in products)
+    {
+     <tr>
+      <td>
+       <a class="btn btn-primary" href="@($"{_configuration["RepoServiceAddress"]}/api/products/{product.PackageCode}?download=true")">
+        <span class="oi oi-cloud-download" aria-hidden="true"></span>
+       </a>
+      </td>
+      <td>
+       <a class="btn btn-primary" @onclick="(() => OnDeleteProduct(product))">
+        <span class="oi oi-delete" aria-hidden="true"></span>
+       </a>
+      </td>
+      @foreach (var property in product.GetType().GetProperties())
+      {
+       <td>@property.GetValue(product, null)</td>
+      }
+     </tr>
+    }
+   </tbody>
+  </table>
+ </div>
+}
+
+@code {
+ private IEnumerable<ProductModel> products { get; set; }
+ private Exception error { get; set; }
+
+ public string productNameFilter;
+
+ public string ProductNameFilter
+ {
+  get => productNameFilter;
+  set
+  {
+   if (value == productNameFilter)
+    return;
+   productNameFilter = value;
+   OnProductNameFilterChanged(productNameFilter);
+  }
+ }
+
+ private async void OnProductNameFilterChanged(string filter)
+ {
+  products = await _repoReceiverService.GetProductModels(filter);
+  this.StateHasChanged();
+ }
+
+ private async void OnDeleteProduct(ProductModel model)
+ {
+  if (await _repoReceiverService.DeleteProduct(model.PackageCode))
+  {
+   initialize();
+  }
+ }
+
+ protected override async Task OnInitializedAsync()
+ {
+  initialize();
+ }
+
+ private async void initialize()
+ {
+  try
+  {
+   products = await _repoReceiverService.GetProductModels();
+  }
+  catch (Exception ex)
+  {
+   error = ex;
+  }
+  finally
+  {
+   StateHasChanged();
+  }
+ }
+ private async Task LoadFiles(InputFileChangeEventArgs e)
+ {
+  try
+  {
+   await _repoReceiverService.UploadFiles(e.GetMultipleFiles());
+   initialize();
+  }
+  catch (Exception ex)
+  {
+   error = ex;
+  }
+ }
+}
