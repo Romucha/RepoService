@@ -15,7 +15,10 @@ builder.Services.AddScoped<IProductFactory, ProductFactory>();
 
 builder.Services.AddScoped<IRepositoryLocation, RepositoryLocation>();
 
+builder.WebHost.UseUrls(new[] { "https://*:7088" });
+
 var app = builder.Build();
+
 
 app.UseHttpsRedirection();
 

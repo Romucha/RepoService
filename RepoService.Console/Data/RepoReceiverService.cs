@@ -107,7 +107,7 @@ namespace RepoService.Console.Data
    {
     foreach (var file in files)
     {
-     content.Add(CreateFileContent(file.OpenReadStream(10485760), file.Name, "application/octet-stream"));
+     content.Add(CreateFileContent(file.OpenReadStream(3758096384), file.Name, "application/octet-stream"));
     }
 
     var response = await client.PostAsync(url, content);
